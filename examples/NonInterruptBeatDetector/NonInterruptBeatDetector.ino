@@ -1,24 +1,18 @@
 /*
- * Code to detect pulses from a pulse Oximeter sensor,
+ * Code to detect pulses from the PulseSensor,
  * using inline code instead of interrupts.
  *
- * Example Pulse Sensors:
- *   Pulse Sensor Amped (http://www.pulsesensor.com)
- *     available through SparkFun, Adafruit, and others.
- *   Grove Pulse Sensor (TODO)
- *   
- * This code has been tested with the Pulse Sensor Amped
- * and Arduino 101 and Arduino Uno.
+ * See https://pulsesensor.com
  * 
- * Copyright (c) 2016 Bradford Needham, North Plains, Oregon, USA
- * @bneedhamia, https://www.needhamia.com
+ * Portions Copyright (c) 2016, 2017 Bradford Needham, North Plains, Oregon, USA
+ * @bneedhamia, https://bluepapertech.com
  * Licensed under the MIT License, a copy of which
  * should have been included with this software.
  * 
  * This software is not intended for medical use.
  */
 
-#include <PulseSensorBPM.h>
+#include <PulseSensorPlayground.h>
 
 /*
  * Pinout:
@@ -33,7 +27,7 @@
  *   PIN_FADE = digital Output. Connected to an LED (and resistor)
  *    that will smoothly fade with each pulse.
  */
-const boolean HAS_A_REF = false; //BUG? analogReference(EXTERNAL) causes a compile error on Arduino 101.
+const boolean HAS_A_REF = false;
 const int PIN_INPUT = A0;
 const int PIN_BLINK = 13;        // Pin 13 is the on-board LED
 const int PIN_FADE = 3;          // must be a pin that supports PWM.
@@ -60,13 +54,10 @@ const unsigned long MICROS_PER_READ = 2 * 1000L;
  * Set this to true only during development,
  * when you want to double-check that the calculations are not taking
  * too much time, causing the Sketch to delay analogRead().
- * I (Brad) have tested this on an Arduino 101 and Arduino UNO.
- * On one Arduino 101, maximum jitter range was 1 microsecond;
- * On one Arduino UNO, maximum jitter range was 64 microseconds.
  * 
  * Centering jitter is important because if the average jitter is non-zero,
  * that means that the code is sampling at a consistently faster (or slower)
- * rate than you want.
+ * rate than you want. See OFFSET_MICROS, below.
  */
 const boolean REPORT_JITTER_AND_HANG = false;
 
@@ -75,12 +66,16 @@ const boolean REPORT_JITTER_AND_HANG = false;
  *  in order to center the jitter (delay past our desired analogRead() time)
  *  around zero.
  *  Calibrate this offset by setting REPORT_JITTER_AND_HANG to true
- *  and observing the jitter that is output after 60 seconds.
+ *  and observing the jitter that is output after 60 seconds,
+ *  then setting OFFSET_MICROS to (jitter max - jitter min)/ 2.
+ *  For example if Jitter min, max = -10, 40,
+ *  OFFSET_MICROS should be set to (40 - (-10)) / 2 = 25.
  *  
- *  For one Arduino Uno I observed an OFFSET_MICROS of 20;
- *  For one Arduino 101, I observed a value of 1;
+ *  One Arduino Uno produced an OFFSET_MICROS of 20;
+ *  One Arduino 101 produced an OFFSET_MICROS 1;
+ *  One Arduino Pro Mini 5V 16MHz produced an OFFSET_MICROS of 34.
  */
-const long OFFSET_MICROS = 1L;  // NOTE: must be non-negative
+const long OFFSET_MICROS = 20L;  // NOTE: must be non-negative
 
 /*
  * Variables around timing of readSensor():
@@ -118,9 +113,14 @@ const int PWM_STEPS_PER_FADE = 12;
 int fadePWM;
 
 /*
+ * the latest analog value we've read from the PulseSensor
+ */
+int lastSampleValue;
+
+/*
  * The per-sample processing code.
  */
-PulseSensorBPM pulseDetector(PIN_INPUT, MICROS_PER_READ / 1000L);
+PulseSensorPlayground pulseSensor;
 
 void setup() {
   /*
@@ -136,10 +136,12 @@ void setup() {
 
   // Set up the I/O pins
   
+#if !defined (__arc__) // EXTERNAL causes a compile error on Arduino 101.
   if (HAS_A_REF) {
-    //BUG? Causes a compile error on Arduino 101: analogReference(EXTERNAL);
+    analogReference(EXTERNAL);
   }
-  // PIN_INPUT is set up by the pulseDetector constructor.
+#endif
+  // no setup is necessary for PIN_INPUT.
   pinMode(PIN_BLINK, OUTPUT);
   digitalWrite(PIN_BLINK, LOW);
   pinMode(PIN_FADE, OUTPUT);
@@ -150,6 +152,10 @@ void setup() {
   samplesUntilReport = SAMPLES_PER_SERIAL_SAMPLE;
   lastReportMicros = 0L;
   resetJitter();
+  
+  // Setup our pulse detector
+  pulseSensor.beginBeatDetection();
+  pulseSensor.setBeatSampleIntervalMs(MICROS_PER_READ / 1000L);
 
   // wait one sample interval before starting to search for pulses.
   wantMicros = micros() + MICROS_PER_READ;
@@ -216,9 +222,12 @@ void loop() {
   }
   
   wantMicros = nowMicros + MICROS_PER_READ;
-  boolean QS = pulseDetector.readSensor();
 
-  if (pulseDetector.isPulse()) {
+  // Read from the PulseSensor and give that value to the Beat Detector.
+  lastSampleValue = analogRead(PIN_INPUT);
+  boolean QS = pulseSensor.addBeatValue(lastSampleValue);
+
+  if (pulseSensor.isBeat()) {
     digitalWrite(PIN_BLINK, HIGH);
   } else {
     digitalWrite(PIN_BLINK, LOW);
@@ -249,7 +258,7 @@ void loop() {
     samplesUntilReport = SAMPLES_PER_SERIAL_SAMPLE;
 
     Serial.print('S');
-    Serial.println(pulseDetector.getSignal());
+    Serial.println(lastSampleValue);
 
     // Coincidentally, fade the LED a bit.
     fadePWM -= PWM_STEPS_PER_FADE;
@@ -263,9 +272,9 @@ void loop() {
   // Every beat, report the heart rate and inter-beat-interval
   if (QS) {
     Serial.print('B');
-    Serial.println(pulseDetector.getBPM());
+    Serial.println(pulseSensor.getBeatsPerMinute());
     Serial.print('Q');
-    Serial.println(pulseDetector.getIBI());
+    Serial.println(pulseSensor.getInterBeatIntervalMs());
   }
 
 }

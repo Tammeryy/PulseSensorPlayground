@@ -1,42 +1,47 @@
 /*
  * Beats-Per-Minute (BPM) heart rate calculation library.
  * Based on Pulse Sensor Amped 1.4 by Joel Murphy and Yury Gitman
- * See http://www.pulsesensor.com
+ * See https://www.pulsesensor.com
  * and https://github.com/WorldFamousElectronics/PulseSensor_Amped_Arduino
  * 
  * This library supports interrupt and non-interrupt use, enabling its
  * use in a wider set of Arduino compatible boards and using a smaller set
  * of I/O pins than the original Sketch.
  * 
- * Source, etc. available at https://github.com/bneedhamia/PulseSensorBPM
+ * Source, etc. available at
+ * https://github.com/bneedhamia/PulseSensorBeatDetector
  * 
- * Portions Copyright (c) 2016 Bradford Needham, North Plains, Oregon
- * @bneedhamia, https://www.needhamia.com
+ * Portions Copyright (c) 2016, 2017 Bradford Needham, North Plains, Oregon, USA
+ * @bneedhamia, https://bluepapertech.com
  * Licensed under the MIT License, a copy of which
  * should have been included with this software.
  * 
  * This software is not intended for medical use.
  */
-#ifndef pulsesensorbpm_h
-#define pulsesensorbpm_h
+#ifndef PULSE_SENSOR_BEAT_DETECTOR_H
+#define PULSE_SENSOR_BEAT_DETECTOR_H
 
 #include <Arduino.h>
 
 /*
- * PulseAmpedSensorVersion = binary version number of this library.
- *   rightmost (lsb) 4 hexidecimal digits = minor version number;
- *   next left 4 digits = major version number.
+ * Default expected time between samples from the PulseSensor.
  */
-#define PULSE_AMPED_BPM_VERSION 0x00010000L
+const long DEFAULT_SAMPLE_INTERVAL_MS = 2L;
 
-class PulseSensorBPM {
+class PulseSensorBeatDetector {
+  public:
+    PulseSensorBeatDetector();
+    void setSampleIntervalMs(long newSampleIntervalMs);
+    int getBPM();
+    int getIBI();
+    boolean isBeat();
+    boolean addBeatValue(int analogValue);
+
   private:
-    int pinPulse;                   // Analog Input pin the Pulse Sensor is connected to.
-    
     // Pulse detection output variables.
     // Volatile because our pulse detection code could be called from an Interrupt
     volatile int BPM;                // int that holds raw Analog in 0. updated every call to readSensor()
-    volatile int Signal;             // holds the incoming raw data (0..1023)
+    volatile int Signal;             // holds the latest incoming raw data (0..1023)
     volatile int IBI;                // int that holds the time interval (ms) between beats! Must be seeded! 
     volatile boolean Pulse;          // "True" when User's live heartbeat is detected. "False" when not a "live beat". 
     
@@ -52,14 +57,5 @@ class PulseSensorBPM {
     int amp;                         // used to hold amplitude of pulse waveform, seeded (sample value)
     boolean firstBeat;               // used to seed rate array so we startup with reasonable BPM
     boolean secondBeat;              // used to seed rate array so we startup with reasonable BPM
-
-  public:
-    static long getVersion();
-    PulseSensorBPM(int pulse_pin, unsigned long sample_interval_ms);
-    int getSignal();
-    int getBPM();
-    int getIBI();
-    boolean isPulse();
-    boolean readSensor();
 };
-#endif // pulsesensorbpm_h
+#endif // PULSE_SENSOR_BEAT_DETECTOR_H
