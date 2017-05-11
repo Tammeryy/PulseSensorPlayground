@@ -15,7 +15,7 @@
 * for 2mS sample rate
 *
 */
-void PulseSensorPlayground::begin() { // FUTURE: overload this to specify number of Pulse Sensors
+void PulseSensorPlayground::begin() { 
   begin(1);
 }
 
