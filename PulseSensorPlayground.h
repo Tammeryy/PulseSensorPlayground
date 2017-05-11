@@ -9,6 +9,7 @@
  *
  * This software is not intended for medical use.
  */
+
 #ifndef PULSE_SENSOR_PLAYGROUND_H
 #define PULSE_SENSOR_PLAYGROUND_H
 
@@ -39,6 +40,11 @@ class PulseSensorPlayground {
     int fadePin[2] = {5,6};
 
     boolean testBool = false;
+
+    boolean uno = false;
+    boolean leo = false;
 };
+
+extern PulseSensorPlayground pulse;
 
 #endif // PULSE_SENSOR_PLAYGROUND_H
